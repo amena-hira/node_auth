@@ -27,7 +27,6 @@ async function run() {
             const email = req.body.email;
             const password = req.body.password;
 
-            const encryptedPassword = await bcrypt.hash(req.body.password, 10);
 
             const emailRegexp = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
             const regUser = /^[^\W_](?!.*?[._]{2})[\w.]{4,18}[^\W_]$/;
@@ -45,7 +44,12 @@ async function run() {
                 console.log(user);
 
                 try {
-                    const existUser = await userAuthCollection.findOne({ userName });
+                    const query = [
+                        { 'userName': userName },
+                        { 'email': email }];
+                    const existUser = await userAuthCollection.findOne({
+                        $and: query
+                    });
                     if (existUser) {
                         result = {
                             acknowledged: false,
@@ -70,8 +74,8 @@ async function run() {
                 const result = {
                     acknowledged: false,
                     email: emailRegexp.test(email),
-                    userName: regUser.test(userName),
-                    password: regPass.test(password)
+                    userName: regUser.test(userName)&& " .username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: regPass.test(password) && " .Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -118,8 +122,8 @@ async function run() {
             else {
                 const result = {
                     acknowledged: false,
-                    userName: regUser.test(userName),
-                    password: regPass.test(password)
+                    userName: regUser.test(userName) && " .username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -138,7 +142,7 @@ async function run() {
                     id: user._id
                 }
                 const token = jwt.sign(payload, secret, { expiresIn: '1d' });
-                const link = `http://localhost:5000/reset-password?id=${user._id}&token=${token}`;
+                const link = `https://backend-auth-seven.vercel.app/reset-password?id=${user._id}&token=${token}`;
                 console.log(link);
 
                 var transporter = nodemailer.createTransport({
@@ -172,6 +176,7 @@ async function run() {
                 res.send({ status: false, result });
             }
         })
+
         app.put('/reset-password', async (req, res) => {
             const { id, token } = req.query;
             const password = req.body.password;
