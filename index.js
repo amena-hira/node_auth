@@ -5,10 +5,13 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.port || 5000;
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require("nodemailer");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 const JWT_SECRET = process.env.ACCESS_TOKEN;
 
@@ -96,7 +99,7 @@ async function run() {
                         console.log(token);
                         res.send({ status: true, token: token });
                     }
-                    else{
+                    else {
                         const result = {
                             acknowledged: false,
                             user: "Password wrong"
@@ -121,6 +124,101 @@ async function run() {
                 res.send({ status: false, result });
             }
 
+        })
+
+        app.post('/forgot-password', async (req, res) => {
+            const email = req.body.email;
+            const query = { email };
+            const user = await userAuthCollection.findOne(query);
+
+            if (user) {
+                const secret = JWT_SECRET + user.password;
+                const payload = {
+                    email: user.email,
+                    id: user._id
+                }
+                const token = jwt.sign(payload, secret, { expiresIn: '1d' });
+                const link = `http://localhost:5000/reset-password?id=${user._id}&token=${token}`;
+                console.log(link);
+
+                var transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: process.env.USER_EMAIL,
+                        pass: process.env.USER_PASSWORD
+                    }
+                });
+
+                var mailOptions = {
+                    from: process.env.USER_EMAIL,
+                    to: user.email,
+                    subject: 'Reset Password Link within 15 minutes',
+                    text: link
+                };
+
+                transporter.sendMail(mailOptions, function (error, info) {
+                    if (error) {
+                        res.status(500).send({ msg: err.message });
+                    } else {
+                        res.status(200).send({ status: true, email: 'Email sent: ' + info.response })
+                    }
+                });
+            }
+            else {
+                const result = {
+                    acknowledged: false,
+                    user: "User not exist"
+                }
+                res.send({ status: false, result });
+            }
+        })
+        app.put('/reset-password', async (req, res) => {
+            const { id, token } = req.query;
+            const password = req.body.password;
+            const query = { _id: new ObjectId(id) };
+            const user = await userAuthCollection.findOne(query);
+
+            if (user) {
+                const secret = JWT_SECRET + user.password;
+                try {
+                    const payload = jwt.verify(token, secret);
+
+                    const regPass = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/
+
+                    if (regPass.test(password)) {
+                        const encryptedPassword = await bcrypt.hash(password, 10);
+                        const { id } = payload;
+                        console.log(payload);
+                        const filter = { _id: new ObjectId(id) };
+                        const options = { upsert: true };
+                        const updatedPassword = {
+                            $set: {
+                                password: encryptedPassword
+                            }
+                        }
+                        const result = await userAuthCollection.updateOne(filter, updatedPassword, options);
+                        res.send({ status: true, result });
+                    }
+                    else {
+                        const result = {
+                            acknowledged: false,
+                            password: regPass.test(password) + " !Password must be 8 characters with one special character and one letter and one number."
+                        }
+                        res.send({ status: false, result });
+                    }
+
+                } catch (error) {
+                    console.log(error);
+                    res.send({ status: false, error });
+                }
+            }
+            else {
+                const result = {
+                    acknowledged: false,
+                    user: "Invalid User"
+                }
+                res.send({ status: false, result });
+            }
         })
     }
     finally {
