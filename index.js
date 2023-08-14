@@ -22,6 +22,7 @@ console.log(uri);
 async function run() {
     try {
         const userAuthCollection = client.db('banano_auth').collection('user_auth');
+
         app.post('/signup', async (req, res) => {
             const userName = req.body.userName;
             const email = req.body.email;
@@ -74,8 +75,8 @@ async function run() {
                 const result = {
                     acknowledged: false,
                     email: emailRegexp.test(email),
-                    userName: regUser.test(userName)&& " .username must be min 6 character and one letter and one number and '_/.' sign!",
-                    password: regPass.test(password) && " .Password must be 8 characters with one special character and one letter and one number!"
+                    userName: !regUser.test(userName)&& "username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: !regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -122,8 +123,8 @@ async function run() {
             else {
                 const result = {
                     acknowledged: false,
-                    userName: regUser.test(userName) && " .username must be min 6 character and one letter and one number and '_/.' sign!",
-                    password: regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number!"
+                    userName: !regUser.test(userName) && "username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: !regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -207,7 +208,7 @@ async function run() {
                     else {
                         const result = {
                             acknowledged: false,
-                            password: regPass.test(password) + " !Password must be 8 characters with one special character and one letter and one number."
+                            password: !regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number."
                         }
                         res.send({ status: false, result });
                     }
