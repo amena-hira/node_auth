@@ -35,7 +35,6 @@ async function run() {
 
 
             if (emailRegexp.test(email) && regUser.test(userName) && regPass.test(password)) {
-
                 const encryptedPassword = await bcrypt.hash(password, 10);
                 const user = {
                     userName,
@@ -72,11 +71,12 @@ async function run() {
                 }
             }
             else {
+                console.log(emailRegexp.test(email), regUser.test(userName), regPass.test(password));
                 const result = {
                     acknowledged: false,
-                    email: emailRegexp.test(email),
-                    userName: !regUser.test(userName)&& "username must be min 6 character and one letter and one number and '_/.' sign!",
-                    password: !regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number!"
+                    email: emailRegexp.test(email) ? emailRegexp.test(email): "email have must be @ sign!",
+                    userName: regUser.test(userName)? regUser.test(userName):"username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: regPass.test(password) ? regPass.test(password):"Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -99,6 +99,7 @@ async function run() {
                     const checkPassword = result.password;
                     let validPassword = await bcrypt.compare(password, checkPassword);
                     console.log(validPassword);
+
                     if (validPassword) {
                         const token = jwt.sign({ userName }, JWT_SECRET, { expiresIn: '1d' })
                         console.log(token);
@@ -111,6 +112,7 @@ async function run() {
                         }
                         res.send({ status: false, result });
                     }
+
                 }
                 else {
                     const result = {
@@ -123,8 +125,8 @@ async function run() {
             else {
                 const result = {
                     acknowledged: false,
-                    userName: !regUser.test(userName) && "username must be min 6 character and one letter and one number and '_/.' sign!",
-                    password: !regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number!"
+                    userName: regUser.test(userName) ? regUser.test(userName):"username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: regPass.test(password) ? regPass.test(password):"Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -157,7 +159,7 @@ async function run() {
                 var mailOptions = {
                     from: process.env.USER_EMAIL,
                     to: user.email,
-                    subject: 'Reset Password Link within 15 minutes',
+                    subject: 'Reset Password Link within 24 hours',
                     text: link
                 };
 
@@ -208,7 +210,7 @@ async function run() {
                     else {
                         const result = {
                             acknowledged: false,
-                            password: !regPass.test(password) && "Password must be 8 characters with one special character and one letter and one number."
+                            password: regPass.test(password) ? regPass.test(password):"Password must be 8 characters with one special character and one letter and one number."
                         }
                         res.send({ status: false, result });
                     }
