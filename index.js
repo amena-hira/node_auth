@@ -273,7 +273,6 @@ async function run() {
                 const imageBuffer = Buffer.from(imageToString, 'base64');
                 const user = await userAuthCollection.findOne({ userName });
 
-                // console.log(imageBuffer);
                 if (user) {
                     const socialData = {
                         userName,
@@ -311,10 +310,8 @@ async function run() {
 
         app.put('/social-media/:id', async (req, res) => {
             const token = req.query;
-            console.log(token.token);
             try {
                 const verifiedUser = jwt.verify(token.token, JWT_SECRET);
-                const userName = verifiedUser.userName;
                 const id = req.params.id;
                 const query = { _id: new ObjectId(id) };
                 const flag = req.files ? true : false;
@@ -342,16 +339,15 @@ async function run() {
                         res.send(result);
                     }
                 } catch (error) {
-
+                    res.send({ status: false, result: "DB error", error });
                 }
             } catch (error) {
                 res.send({ status: false, error });
             }
         })
 
-        app.delete('/social-media', async (req, res) => {
+        app.delete('/social-media/:id', async (req, res) => {
             const token = req.query;
-            console.log(token.token);
             try {
                 const verifiedUser = jwt.verify(token.token, JWT_SECRET);
                 const id = req.params.id;
@@ -359,6 +355,36 @@ async function run() {
                 try {
                     const posts = await socialMedia.deleteOne({ _id: new ObjectId(id), userName });
                     res.send(posts);
+                } catch (error) {
+                    res.send({ status: false, result: "DB error", error });
+                }
+            } catch (error) {
+                res.send({ status: false, error });
+            }
+        })
+
+        // social media like and comment
+        app.post('/social-media/like_comment/:id', async (req, res) => {
+            const token = req.query;
+            
+            try {
+                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) };
+                const post = await socialMedia.findOne(query);
+                try {
+                        const likeInt = post.like? parseInt(post.like) : 0;
+                        const totalLike = req.body.like? likeInt+parseInt(req.body.like): likeInt;
+                        const comment = req.body.comment? req.body.comment : (post.comment? post.comment: "");
+                        const updatePost = {
+                            $set: {
+                                like: totalLike,
+                                comment
+                            }
+                        }
+                        const result = await socialMedia.updateOne(query, updatePost);
+                        res.send(result);
+                    
                 } catch (error) {
                     res.send({ status: false, result: "DB error", error });
                 }
