@@ -234,24 +234,28 @@ async function run() {
 
         // CRUD operation for social media
         app.get('/social-media/all', async (req, res) => {
-            const token = req.query;
-            console.log(token.token);
+            const token = req.headers.authorization;
+            console.log(token);
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
             try {
-                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const query = {};
                 const posts = await socialMedia.find(query).toArray();
                 res.send(posts);
             } catch (error) {
                 res.send({ status: false, error });
             }
-
         })
 
         app.get('/social-media', async (req, res) => {
-            const token = req.query;
-            console.log(token.token);
+            const token = req.headers.authorization;
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
             try {
-                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const userName = verifiedUser.userName;
                 const posts = await socialMedia.find({ userName }).toArray();
                 res.send(posts);
@@ -261,11 +265,31 @@ async function run() {
 
         })
 
-        app.post('/social-media', async (req, res) => {
-            const token = req.query;
-            console.log(token.token);
+        app.get('/social-media/:id', async (req, res) => {
+            const token = req.headers.authorization;
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
             try {
-                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
+                const userName = verifiedUser.userName;
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id), userName };
+                const posts = await socialMedia.find(query).toArray();
+                res.send(posts);
+            } catch (error) {
+                res.send({ status: false, error });
+            }
+
+        })
+
+        app.post('/social-media', async (req, res) => {
+            const token = req.headers.authorization;
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
+            try {
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
                 console.log(verifiedUser);
                 const userName = verifiedUser.userName;
                 const imageData = req.files.image.data;
@@ -310,17 +334,20 @@ async function run() {
         })
 
         app.put('/social-media/:id', async (req, res) => {
-            const token = req.query;
+            const token = req.headers.authorization;
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
             try {
-                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const id = req.params.id;
-                const query = { _id: new ObjectId(id) };
+                const query = { _id: new ObjectId(id), userName:verifiedUser.userName };
                 const hasImage = req.files ? true : false;
                 const hasDescription = req.body.description ? true : false;
                 let updateField = {};
 
                 if (!hasImage && !hasDescription) {
-                    res.send({ status: false, result: "No Update Found" })
+                    res.send({ status: false, result: "No Input Found" })
                 }
                 if (hasImage) {
                     const imageData = req.files.image.data;
@@ -348,9 +375,12 @@ async function run() {
         })
 
         app.delete('/social-media/:id', async (req, res) => {
-            const token = req.query;
+            const token = req.headers.authorization;
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
             try {
-                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const id = req.params.id;
                 const userName = verifiedUser.userName;
                 try {
@@ -364,46 +394,55 @@ async function run() {
             }
         })
 
-        // social media like and comment
+        // social media like and comment with post api
         app.post('/social-media/like_comment/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const post = await socialMedia.findOne(query);
-            if (post) {
-                const like = req.body.like;
-                const comment = req.body.comment;
-                let updateField = {};
+            const token = req.headers.authorization;
+            if (!token) {
+                return res.send({ status: false, error: 'unauthorized access' });
+            }
+            try {
+                const verifiedUser = jwt.verify(token, JWT_SECRET);
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) };
+                const post = await socialMedia.findOne(query);
+                if (post) {
+                    const like = req.body.like;
+                    const comment = req.body.comment;
+                    let updateField = {};
 
-                if (!comment && !like) {
-                    console.log("enter");
-                    return res.send({ status: false, result: "No Input Found!" })
-                }
-                if (comment) {
-                    updateField.comment = comment;
-                }
-                if (like && ["yes", "no"].includes(like.toLowerCase())) {
-                    const postLike = post.like ? parseInt(post.like) : 0;
-                    updateField.like = like.toLowerCase() === "yes" ? (postLike+1) : postLike;
-                }
-                else if(like && !["yes", "no"].includes(like.toLowerCase())){
-                    console.log("else");
-                    return res.send({ status: false, result: "Invalid Like Input" })
-                }
-                console.log(updateField);
-
-                try {
-                    const updatePost = {
-                        $set: updateField
+                    if (!comment && !like) {
+                        console.log("enter");
+                        return res.send({ status: false, result: "No Input Found!" })
                     }
-                    console.log(updatePost);
-                    const result = await socialMedia.updateOne(query, updatePost);
-                    res.send(result);
+                    if (comment) {
+                        updateField.comment = comment;
+                    }
+                    if (like && ["yes", "no"].includes(like.toLowerCase())) {
+                        const postLike = post.like ? parseInt(post.like) : 0;
+                        updateField.like = like.toLowerCase() === "yes" ? (postLike + 1) : postLike;
+                    }
+                    else if (like && !["yes", "no"].includes(like.toLowerCase())) {
+                        console.log("else");
+                        return res.send({ status: false, result: "Invalid Like Input" })
+                    }
+                    console.log(updateField);
 
-                } catch (error) {
-                    res.send({ status: false, result: "DB Error", error });
+                    try {
+                        const updatePost = {
+                            $set: updateField
+                        }
+                        console.log(updatePost);
+                        const result = await socialMedia.updateOne(query, updatePost);
+                        res.send(result);
+
+                    } catch (error) {
+                        res.send({ status: false, result: "DB Error", error });
+                    }
+                } else {
+                    res.send({ status: false, result: "No post Found" })
                 }
-            } else {
-                res.send({status:false, result:"No post Found"})
+            } catch (error) {
+                res.send({ status: false, error });
             }
         })
     }
