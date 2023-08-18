@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const fileUpload = require('express-fileupload');
 require('dotenv').config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.port || 5000;
@@ -11,6 +12,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(fileUpload());
 app.use(express.urlencoded({ extended: false }));
 
 const JWT_SECRET = process.env.ACCESS_TOKEN;
@@ -22,6 +24,7 @@ console.log(uri);
 async function run() {
     try {
         const userAuthCollection = client.db('banano_auth').collection('user_auth');
+        const socialMedia = client.db('banano_auth').collection('social_media');
 
         app.post('/signup', async (req, res) => {
             const userName = req.body.userName;
@@ -74,9 +77,9 @@ async function run() {
                 console.log(emailRegexp.test(email), regUser.test(userName), regPass.test(password));
                 const result = {
                     acknowledged: false,
-                    email: emailRegexp.test(email) ? emailRegexp.test(email): "email have must be @ sign!",
-                    userName: regUser.test(userName)? regUser.test(userName):"username must be min 6 character and one letter and one number and '_/.' sign!",
-                    password: regPass.test(password) ? regPass.test(password):"Password must be 8 characters with one special character and one letter and one number!"
+                    email: emailRegexp.test(email) ? emailRegexp.test(email) : "email have must be @ sign!",
+                    userName: regUser.test(userName) ? regUser.test(userName) : "username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: regPass.test(password) ? regPass.test(password) : "Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -125,8 +128,8 @@ async function run() {
             else {
                 const result = {
                     acknowledged: false,
-                    userName: regUser.test(userName) ? regUser.test(userName):"username must be min 6 character and one letter and one number and '_/.' sign!",
-                    password: regPass.test(password) ? regPass.test(password):"Password must be 8 characters with one special character and one letter and one number!"
+                    userName: regUser.test(userName) ? regUser.test(userName) : "username must be min 6 character and one letter and one number and '_/.' sign!",
+                    password: regPass.test(password) ? regPass.test(password) : "Password must be 8 characters with one special character and one letter and one number!"
                 }
                 res.send({ status: false, result });
             }
@@ -210,7 +213,7 @@ async function run() {
                     else {
                         const result = {
                             acknowledged: false,
-                            password: regPass.test(password) ? regPass.test(password):"Password must be 8 characters with one special character and one letter and one number."
+                            password: regPass.test(password) ? regPass.test(password) : "Password must be 8 characters with one special character and one letter and one number."
                         }
                         res.send({ status: false, result });
                     }
@@ -226,6 +229,141 @@ async function run() {
                     user: "Invalid User"
                 }
                 res.send({ status: false, result });
+            }
+        })
+
+        // CRUD operation for social media
+        app.get('/social-media/all', async (req, res) => {
+            const token = req.query;
+            console.log(token.token);
+            try {
+                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const query = {};
+                const posts = await socialMedia.find(query).toArray();
+                res.send(posts);
+            } catch (error) {
+                res.send({ status: false, error });
+            }
+
+        })
+
+        app.get('/social-media', async (req, res) => {
+            const token = req.query;
+            console.log(token.token);
+            try {
+                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const userName = verifiedUser.userName;
+                const posts = await socialMedia.find({ userName }).toArray();
+                res.send(posts);
+            } catch (error) {
+                res.send({ status: false, error });
+            }
+
+        })
+
+        app.post('/social-media', async (req, res) => {
+            const token = req.query;
+            console.log(token.token);
+            try {
+                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                console.log(verifiedUser);
+                const userName = verifiedUser.userName;
+                const imageData = req.files.fileName.data;
+                const imageToString = imageData.toString('base64');
+                const imageBuffer = Buffer.from(imageToString, 'base64');
+                const user = await userAuthCollection.findOne({ userName });
+
+                // console.log(imageBuffer);
+                if (user) {
+                    const socialData = {
+                        userName,
+                        description: req.body.description,
+                        image: imageBuffer
+                    }
+                    console.log(socialData);
+                    try {
+                        const result = await socialMedia.insertOne(socialData);
+                        res.send(result);
+                    } catch (error) {
+                        const result = {
+                            acknowledged: false,
+                            message: "DB error",
+                        }
+                        res.send({ status: false, result, error });
+                    }
+                }
+                else {
+                    const result = {
+                        acknowledged: false,
+                        message: "user not exist"
+                    }
+                    res.send({ status: false, result })
+                }
+            } catch (error) {
+                console.log(error);
+                const result = {
+                    acknowledged: false,
+                    message: req.files?.fileName ? "Invalid Token" : "image required"
+                }
+                res.send({ status: false, result, error });
+            }
+        })
+
+        app.put('/social-media/:id', async (req, res) => {
+            const token = req.query;
+            console.log(token.token);
+            try {
+                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const userName = verifiedUser.userName;
+                const id = req.params.id;
+                const query = { _id: new ObjectId(id) };
+                const flag = req.files ? true : false;
+                console.log(flag);
+                try {
+                    if (flag) {
+                        const imageData = req.files.fileName.data;
+                        const imageToString = imageData.toString('base64');
+                        const imageBuffer = Buffer.from(imageToString, 'base64');
+                        const updatePost = {
+                            $set: {
+                                image: imageBuffer,
+                                description: req.body.description
+                            }
+                        }
+                        const result = await socialMedia.updateOne(query, updatePost);
+                        res.send(result);
+                    } else {
+                        const updatePost = {
+                            $set: {
+                                description: req.body.description
+                            }
+                        }
+                        const result = await socialMedia.updateOne(query, updatePost);
+                        res.send(result);
+                    }
+                } catch (error) {
+
+                }
+            } catch (error) {
+                res.send({ status: false, error });
+            }
+        })
+
+        app.delete('/social-media', async (req, res) => {
+            const token = req.query;
+            console.log(token.token);
+            try {
+                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
+                const id = req.params.id;
+                const userName = verifiedUser.userName;
+                try {
+                    const posts = await socialMedia.deleteOne({ _id: new ObjectId(id), userName });
+                    res.send(posts);
+                } catch (error) {
+                    res.send({ status: false, result: "DB error", error });
+                }
+            } catch (error) {
+                res.send({ status: false, error });
             }
         })
     }
