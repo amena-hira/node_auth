@@ -268,10 +268,11 @@ async function run() {
                 const verifiedUser = jwt.verify(token.token, JWT_SECRET);
                 console.log(verifiedUser);
                 const userName = verifiedUser.userName;
-                const imageData = req.files.fileName.data;
+                const imageData = req.files.image.data;
                 const imageToString = imageData.toString('base64');
                 const imageBuffer = Buffer.from(imageToString, 'base64');
                 const user = await userAuthCollection.findOne({ userName });
+                console.log(imageBuffer);
 
                 if (user) {
                     const socialData = {
@@ -314,35 +315,35 @@ async function run() {
                 const verifiedUser = jwt.verify(token.token, JWT_SECRET);
                 const id = req.params.id;
                 const query = { _id: new ObjectId(id) };
-                const flag = req.files ? true : false;
-                console.log(flag);
+                const hasImage = req.files ? true : false;
+                const hasDescription = req.body.description ? true : false;
+                let updateField = {};
+
+                if (!hasImage && !hasDescription) {
+                    res.send({ status: false, result: "No Update Found" })
+                }
+                if (hasImage) {
+                    const imageData = req.files.image.data;
+                    const imageToString = imageData.toString('base64');
+                    const imageBuffer = Buffer.from(imageToString, 'base64');
+                    updateField.image = imageBuffer;
+                }
+                if (hasDescription) {
+                    updateField.description = req.body.description;
+                }
+
+                const updatePost = {
+                    $set: updateField
+                };
+
                 try {
-                    if (flag) {
-                        const imageData = req.files.fileName.data;
-                        const imageToString = imageData.toString('base64');
-                        const imageBuffer = Buffer.from(imageToString, 'base64');
-                        const updatePost = {
-                            $set: {
-                                image: imageBuffer,
-                                description: req.body.description
-                            }
-                        }
-                        const result = await socialMedia.updateOne(query, updatePost);
-                        res.send(result);
-                    } else {
-                        const updatePost = {
-                            $set: {
-                                description: req.body.description
-                            }
-                        }
-                        const result = await socialMedia.updateOne(query, updatePost);
-                        res.send(result);
-                    }
+                    const result = await socialMedia.updateOne(query, updatePost);
+                    res.send(result);
                 } catch (error) {
                     res.send({ status: false, result: "DB error", error });
                 }
             } catch (error) {
-                res.send({ status: false, error });
+                res.send({ status: false, message: "token error", error });
             }
         })
 
@@ -365,31 +366,44 @@ async function run() {
 
         // social media like and comment
         app.post('/social-media/like_comment/:id', async (req, res) => {
-            const token = req.query;
-            
-            try {
-                const verifiedUser = jwt.verify(token.token, JWT_SECRET);
-                const id = req.params.id;
-                const query = { _id: new ObjectId(id) };
-                const post = await socialMedia.findOne(query);
-                try {
-                        const likeInt = post.like? parseInt(post.like) : 0;
-                        const totalLike = req.body.like? likeInt+parseInt(req.body.like): likeInt;
-                        const comment = req.body.comment? req.body.comment : (post.comment? post.comment: "");
-                        const updatePost = {
-                            $set: {
-                                like: totalLike,
-                                comment
-                            }
-                        }
-                        const result = await socialMedia.updateOne(query, updatePost);
-                        res.send(result);
-                    
-                } catch (error) {
-                    res.send({ status: false, result: "DB error", error });
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const post = await socialMedia.findOne(query);
+            if (post) {
+                const like = req.body.like;
+                const comment = req.body.comment;
+                let updateField = {};
+
+                if (!comment && !like) {
+                    console.log("enter");
+                    return res.send({ status: false, result: "No Input Found!" })
                 }
-            } catch (error) {
-                res.send({ status: false, error });
+                if (comment) {
+                    updateField.comment = comment;
+                }
+                if (like && ["yes", "no"].includes(like.toLowerCase())) {
+                    const postLike = post.like ? parseInt(post.like) : 0;
+                    updateField.like = like.toLowerCase() === "yes" ? (postLike+1) : postLike;
+                }
+                else if(like && !["yes", "no"].includes(like.toLowerCase())){
+                    console.log("else");
+                    return res.send({ status: false, result: "Invalid Like Input" })
+                }
+                console.log(updateField);
+
+                try {
+                    const updatePost = {
+                        $set: updateField
+                    }
+                    console.log(updatePost);
+                    const result = await socialMedia.updateOne(query, updatePost);
+                    res.send(result);
+
+                } catch (error) {
+                    res.send({ status: false, result: "DB Error", error });
+                }
+            } else {
+                res.send({status:false, result:"No post Found"})
             }
         })
     }
