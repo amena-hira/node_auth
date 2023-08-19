@@ -344,6 +344,10 @@ async function run() {
                 const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const id = req.params.id;
                 const query = { _id: new ObjectId(id), userName: verifiedUser.userName };
+                const hasPost = await socialMedia.findOne(query);
+                if (!hasPost) {
+                    return res.send({status:false, result:"This post is not exist!"})
+                }
                 const hasImage = req.files ? true : false;
                 const hasDescription = req.body.description ? true : false;
                 let updateField = {};
@@ -391,8 +395,13 @@ async function run() {
                 const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const id = req.params.id;
                 const userName = verifiedUser.userName;
+                const query = { _id: new ObjectId(id), userName };
+                const hasPost = await socialMedia.findOne(query);
+                if (!hasPost) {
+                    return res.send({status:false, result:"This post is not exist!"})
+                }
                 try {
-                    const posts = await socialMedia.deleteOne({ _id: new ObjectId(id), userName });
+                    const posts = await socialMedia.deleteOne(query);
                     res.send(posts);
                 } catch (error) {
                     res.send({ status: false, result: "DB error", error });
