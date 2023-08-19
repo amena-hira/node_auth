@@ -276,8 +276,13 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id), userName };
             try {
-                const posts = await socialMedia.find(query).toArray();
-                res.send(posts);
+                const post = await socialMedia.findOne(query);
+                console.log(post);
+                if (!post) {
+                    console.log("check post");
+                    return res.send({ status: false, result: "This post is not exist!" })
+                }
+                res.send(post);
             } catch (error) {
                 res.send({ status: false, error });
             }
@@ -285,14 +290,18 @@ async function run() {
         })
 
         app.post('/social-media', verifyUser, async (req, res) => {
-            const validExtension = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-            const imageExtract = req.files.image.mimetype;
-            const validImageExtension = validExtension.includes(imageExtract.toLowerCase());
-            if (!validImageExtension) {
-                return res.send({ status: false, result: "Only image can be upload!" })
+            const image = req.files;
+            if (!image) {
+                return res.send({ status: false, message: "Image required" })
             }
             const userName = req.verifiedUser.userName;
-            const imageData = req.files.image.data;
+            const imageData = image.image.data;
+            const validExtension = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+            const imageExtract = image.image.mimetype;
+            const validImageExtension = validExtension.includes(imageExtract.toLowerCase());
+            if (!validImageExtension) {
+                return res.send({ status: false, result: "Only image can be uploaded!" })
+            }
             const imageToString = imageData.toString('base64');
             const imageBuffer = Buffer.from(imageToString, 'base64');
             try {
@@ -325,12 +334,7 @@ async function run() {
                     res.send({ status: false, result })
                 }
             } catch (error) {
-                console.log(error);
-                const result = {
-                    acknowledged: false,
-                    message: req.files?.fileName ? "Invalid Token" : "image required"
-                }
-                res.send({ status: false, result, error });
+                res.send({ status: false, result: "DB error", error });
             }
         })
 
