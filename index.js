@@ -26,6 +26,7 @@ async function run() {
         const userAuthCollection = client.db('banano_auth').collection('user_auth');
         const socialMedia = client.db('banano_auth').collection('social_media');
 
+        // authentication and authorization
         app.post('/signup', async (req, res) => {
             const userName = req.body.userName;
             const email = req.body.email;
@@ -233,15 +234,10 @@ async function run() {
         })
 
         // CRUD operation for social media
+        // can view all data without login
         app.get('/social-media/all', async (req, res) => {
-            const token = req.headers.authorization;
-            console.log(token);
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
-            }
+            const query = {};
             try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const query = {};
                 const posts = await socialMedia.find(query).toArray();
                 res.send(posts);
             } catch (error) {
@@ -249,6 +245,7 @@ async function run() {
             }
         })
 
+        // for logged in user
         app.get('/social-media', async (req, res) => {
             const token = req.headers.authorization;
             if (!token) {
@@ -290,7 +287,12 @@ async function run() {
             }
             try {
                 const verifiedUser = jwt.verify(token, JWT_SECRET);
-                console.log(verifiedUser);
+                const validExtension = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+                const imageExtract = req.files.image.mimetype;
+                const validImageExtension = validExtension.includes(imageExtract.toLowerCase());
+                if (!validImageExtension) {
+                    return res.send({ status: false, result: "Only image can be upload!" })
+                }
                 const userName = verifiedUser.userName;
                 const imageData = req.files.image.data;
                 const imageToString = imageData.toString('base64');
@@ -341,15 +343,21 @@ async function run() {
             try {
                 const verifiedUser = jwt.verify(token, JWT_SECRET);
                 const id = req.params.id;
-                const query = { _id: new ObjectId(id), userName:verifiedUser.userName };
+                const query = { _id: new ObjectId(id), userName: verifiedUser.userName };
                 const hasImage = req.files ? true : false;
                 const hasDescription = req.body.description ? true : false;
                 let updateField = {};
 
                 if (!hasImage && !hasDescription) {
-                    res.send({ status: false, result: "No Input Found" })
+                    return res.send({ status: false, result: "No Input Found" })
                 }
                 if (hasImage) {
+                    const validExtension = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+                    const imageExtract = req.files.image.mimetype;
+                    const validImageExtension = validExtension.includes(imageExtract.toLowerCase());
+                    if (!validImageExtension) {
+                        return res.send({ status: false, result: "Only image can be upload!" })
+                    }
                     const imageData = req.files.image.data;
                     const imageToString = imageData.toString('base64');
                     const imageBuffer = Buffer.from(imageToString, 'base64');
@@ -395,55 +403,48 @@ async function run() {
         })
 
         // social media like and comment with post api
+        // can like and comment without logged in
         app.post('/social-media/like_comment/:id', async (req, res) => {
-            const token = req.headers.authorization;
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
-            }
-            try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const id = req.params.id;
-                const query = { _id: new ObjectId(id) };
-                const post = await socialMedia.findOne(query);
-                if (post) {
-                    const like = req.body.like;
-                    const comment = req.body.comment;
-                    let updateField = {};
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const post = await socialMedia.findOne(query);
+            if (post) {
+                const like = req.body.like;
+                const comment = req.body.comment;
+                let updateField = {};
 
-                    if (!comment && !like) {
-                        console.log("enter");
-                        return res.send({ status: false, result: "No Input Found!" })
-                    }
-                    if (comment) {
-                        updateField.comment = comment;
-                    }
-                    if (like && ["yes", "no"].includes(like.toLowerCase())) {
-                        const postLike = post.like ? parseInt(post.like) : 0;
-                        updateField.like = like.toLowerCase() === "yes" ? (postLike + 1) : postLike;
-                    }
-                    else if (like && !["yes", "no"].includes(like.toLowerCase())) {
-                        console.log("else");
-                        return res.send({ status: false, result: "Invalid Like Input" })
-                    }
-                    console.log(updateField);
-
-                    try {
-                        const updatePost = {
-                            $set: updateField
-                        }
-                        console.log(updatePost);
-                        const result = await socialMedia.updateOne(query, updatePost);
-                        res.send(result);
-
-                    } catch (error) {
-                        res.send({ status: false, result: "DB Error", error });
-                    }
-                } else {
-                    res.send({ status: false, result: "No post Found" })
+                if (!comment && !like) {
+                    console.log("enter");
+                    return res.send({ status: false, result: "No Input Found!" })
                 }
-            } catch (error) {
-                res.send({ status: false, error });
+                if (comment) {
+                    updateField.comment = comment;
+                }
+                if (like && ["yes", "no"].includes(like.toLowerCase())) {
+                    const postLike = post.like ? parseInt(post.like) : 0;
+                    updateField.like = like.toLowerCase() === "yes" ? (postLike + 1) : postLike;
+                }
+                else if (like && !["yes", "no"].includes(like.toLowerCase())) {
+                    console.log("else");
+                    return res.send({ status: false, result: "Invalid Like Input" })
+                }
+                console.log(updateField);
+
+                try {
+                    const updatePost = {
+                        $set: updateField
+                    }
+                    console.log(updatePost);
+                    const result = await socialMedia.updateOne(query, updatePost);
+                    res.send(result);
+
+                } catch (error) {
+                    res.send({ status: false, result: "DB Error", error });
+                }
+            } else {
+                res.send({ status: false, result: "No post Found" })
             }
+
         })
     }
     finally {
