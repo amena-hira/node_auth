@@ -19,7 +19,21 @@ const JWT_SECRET = process.env.ACCESS_TOKEN;
 
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.cwbwt8c.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
-console.log(uri);
+
+// verify user by middleware function
+function verifyUser(req, res, next) {
+    const token = req.headers.authorization;
+    if (!token) {
+        return res.status(401).send({ status: false, error: 'unauthorized access' });
+    }
+    jwt.verify(token, JWT_SECRET, function (error, verifiedUser) {
+        if (error) {
+            return res.status(401).send({ status: false, message: "Invalid JWT Token", error: 'forbidden access' });
+        }
+        req.verifiedUser = verifiedUser;
+        next();
+    });
+}
 
 async function run() {
     try {
@@ -246,14 +260,9 @@ async function run() {
         })
 
         // for logged in user
-        app.get('/social-media', async (req, res) => {
-            const token = req.headers.authorization;
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
-            }
+        app.get('/social-media', verifyUser, async (req, res) => {
+            const userName = req.verifiedUser.userName;
             try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const userName = verifiedUser.userName;
                 const posts = await socialMedia.find({ userName }).toArray();
                 res.send(posts);
             } catch (error) {
@@ -262,16 +271,11 @@ async function run() {
 
         })
 
-        app.get('/social-media/:id', async (req, res) => {
-            const token = req.headers.authorization;
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
-            }
+        app.get('/social-media/:id', verifyUser, async (req, res) => {
+            const userName = req.verifiedUser.userName;
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id), userName };
             try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const userName = verifiedUser.userName;
-                const id = req.params.id;
-                const query = { _id: new ObjectId(id), userName };
                 const posts = await socialMedia.find(query).toArray();
                 res.send(posts);
             } catch (error) {
@@ -280,23 +284,18 @@ async function run() {
 
         })
 
-        app.post('/social-media', async (req, res) => {
-            const token = req.headers.authorization;
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
+        app.post('/social-media', verifyUser, async (req, res) => {
+            const validExtension = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+            const imageExtract = req.files.image.mimetype;
+            const validImageExtension = validExtension.includes(imageExtract.toLowerCase());
+            if (!validImageExtension) {
+                return res.send({ status: false, result: "Only image can be upload!" })
             }
+            const userName = req.verifiedUser.userName;
+            const imageData = req.files.image.data;
+            const imageToString = imageData.toString('base64');
+            const imageBuffer = Buffer.from(imageToString, 'base64');
             try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const validExtension = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-                const imageExtract = req.files.image.mimetype;
-                const validImageExtension = validExtension.includes(imageExtract.toLowerCase());
-                if (!validImageExtension) {
-                    return res.send({ status: false, result: "Only image can be upload!" })
-                }
-                const userName = verifiedUser.userName;
-                const imageData = req.files.image.data;
-                const imageToString = imageData.toString('base64');
-                const imageBuffer = Buffer.from(imageToString, 'base64');
                 const user = await userAuthCollection.findOne({ userName });
                 console.log(imageBuffer);
 
@@ -335,18 +334,14 @@ async function run() {
             }
         })
 
-        app.put('/social-media/:id', async (req, res) => {
-            const token = req.headers.authorization;
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
-            }
+        app.put('/social-media/:id', verifyUser, async (req, res) => {
+            const userName = req.verifiedUser.userName;
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id), userName };
             try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const id = req.params.id;
-                const query = { _id: new ObjectId(id), userName: verifiedUser.userName };
                 const hasPost = await socialMedia.findOne(query);
                 if (!hasPost) {
-                    return res.send({status:false, result:"This post is not exist!"})
+                    return res.send({ status: false, result: "This post is not exist!" })
                 }
                 const hasImage = req.files ? true : false;
                 const hasDescription = req.body.description ? true : false;
@@ -386,19 +381,14 @@ async function run() {
             }
         })
 
-        app.delete('/social-media/:id', async (req, res) => {
-            const token = req.headers.authorization;
-            if (!token) {
-                return res.send({ status: false, error: 'unauthorized access' });
-            }
+        app.delete('/social-media/:id', verifyUser, async (req, res) => {
+            const id = req.params.id;
+            const userName = req.verifiedUser.userName;
+            const query = { _id: new ObjectId(id), userName };
             try {
-                const verifiedUser = jwt.verify(token, JWT_SECRET);
-                const id = req.params.id;
-                const userName = verifiedUser.userName;
-                const query = { _id: new ObjectId(id), userName };
                 const hasPost = await socialMedia.findOne(query);
                 if (!hasPost) {
-                    return res.send({status:false, result:"This post is not exist!"})
+                    return res.send({ status: false, result: "This post is not exist!" })
                 }
                 try {
                     const posts = await socialMedia.deleteOne(query);
