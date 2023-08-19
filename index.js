@@ -282,6 +282,9 @@ async function run() {
                     console.log("check post");
                     return res.send({ status: false, result: "This post is not exist!" })
                 }
+                if (post.userName !== userName) {
+                    return res.send({ status: false, result: "This post is not from the logged in user.!" })
+                }
                 res.send(post);
             } catch (error) {
                 res.send({ status: false, error });
@@ -347,6 +350,9 @@ async function run() {
                 if (!hasPost) {
                     return res.send({ status: false, result: "This post is not exist!" })
                 }
+                if (post.userName !== userName) {
+                    return res.send({ status: false, result: "This post is not from the logged in user.!" })
+                }
                 const hasImage = req.files ? true : false;
                 const hasDescription = req.body.description ? true : false;
                 let updateField = {};
@@ -381,7 +387,7 @@ async function run() {
                     res.send({ status: false, result: "DB error", error });
                 }
             } catch (error) {
-                res.send({ status: false, message: "token error", error });
+                res.send({ status: false, error });
             }
         })
 
@@ -393,6 +399,9 @@ async function run() {
                 const hasPost = await socialMedia.findOne(query);
                 if (!hasPost) {
                     return res.send({ status: false, result: "This post is not exist!" })
+                }
+                if (post.userName !== userName) {
+                    return res.send({ status: false, result: "This post is not from the logged in user.!" })
                 }
                 try {
                     const posts = await socialMedia.deleteOne(query);
