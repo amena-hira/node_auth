@@ -249,7 +249,7 @@ async function run() {
 
         // CRUD operation for social media
         // can view all data without login
-        app.get('/social-media/all', async (req, res) => {
+        app.get('/social-media/all', verifyUser, async (req, res) => {
             const query = {};
             try {
                 const posts = await socialMedia.find(query).toArray();
@@ -350,7 +350,7 @@ async function run() {
                 if (!hasPost) {
                     return res.send({ status: false, result: "This post is not exist!" })
                 }
-                if (post.userName !== userName) {
+                if (hasPost.userName !== userName) {
                     return res.send({ status: false, result: "This post is not from the logged in user.!" })
                 }
                 const hasImage = req.files ? true : false;
@@ -387,7 +387,7 @@ async function run() {
                     res.send({ status: false, result: "DB error", error });
                 }
             } catch (error) {
-                res.send({ status: false, error });
+                res.send({ status: false, result: "DB error",error });
             }
         })
 
@@ -416,7 +416,7 @@ async function run() {
 
         // social media like and comment with post api
         // can like and comment without logged in
-        app.post('/social-media/like_comment/:id', async (req, res) => {
+        app.post('/social-media/like_comment/:id',verifyUser, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const post = await socialMedia.findOne(query);
